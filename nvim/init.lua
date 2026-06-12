@@ -4,6 +4,8 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
+local treesitter_languages = { "lua", "python", "javascript", "typescript", "json", "yaml", "markdown" }
+
 -- Line numbers
 vim.opt.number = true
 vim.opt.relativenumber = true
@@ -118,12 +120,21 @@ require("lazy").setup({
     -- Syntax highlighting
     {
         "nvim-treesitter/nvim-treesitter",
-        build = ":TSUpdate",
+        lazy = false,
+        build = function()
+            require("nvim-treesitter").install(treesitter_languages):wait(300000)
+        end,
         config = function()
-            require("nvim-treesitter.configs").setup({
-                ensure_installed = { "lua", "python", "javascript", "typescript", "json", "yaml", "markdown" },
-                highlight = { enable = true },
-                indent = { enable = true },
+            local treesitter = require("nvim-treesitter")
+
+            treesitter.setup()
+
+            vim.api.nvim_create_autocmd("FileType", {
+                pattern = treesitter_languages,
+                callback = function()
+                    pcall(vim.treesitter.start)
+                    vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+                end,
             })
         end,
     },

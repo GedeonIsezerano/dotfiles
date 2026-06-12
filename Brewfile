@@ -4,14 +4,16 @@ tap "homebrew/bundle"
 # CLI Tools
 brew "neovim"
 brew "git"
-brew "node"          # Required for Claude Code
+brew "node"          # JavaScript runtime
+brew "pnpm"          # Package manager for Codex
 brew "ripgrep"       # Fast search (useful for neovim)
 brew "fd"            # Fast find (useful for neovim)
 brew "fzf"           # Fuzzy finder
+brew "tree-sitter"   # Parser CLI for nvim-treesitter
 
 # Applications
 cask "ghostty"
 cask "wispr-flow"
 
-# Note: Claude Code is installed via npm after node is available
-# Run: npm install -g @anthropic-ai/claude-code
+# Note: Codex is installed via pnpm after node is available
+# Run: pnpm add -g @openai/codex

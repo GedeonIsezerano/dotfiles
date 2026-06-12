@@ -1,7 +1,6 @@
 [user]
-    # Set your name and email
-    # name = Your Name
-    # email = your@email.com
+    name = Gedeon Isezerano
+    email = GedeonIsezerano@users.noreply.github.com
 
 [init]
     defaultBranch = main

@@ -1,9 +1,3 @@
-# export PATH="/opt/homebrew/anaconda3/bin:$PATH"  # commented out by conda initialize
-export PATH="/Library/TeX/texbin:$PATH"
-
-# Add Homebrew Ruby 3.3 to PATH (prioritize over system Ruby)
-export PATH="/opt/homebrew/opt/ruby@3.3/bin:$PATH"
-
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -11,8 +5,21 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# If you come from bash you might have to change your $PATH.
-# export PATH=$HOME/bin:/usr/local/bin:$PATH
+export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+[ -d "$PNPM_HOME" ] && export PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
+[ -d "$HOME/.local/opt/nvim-linux-x86_64/bin" ] && export PATH="$HOME/.local/opt/nvim-linux-x86_64/bin:$PATH"
+
+case "$(uname -s)" in
+  Darwin)
+    [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    [ -x /usr/local/bin/brew ] && eval "$(/usr/local/bin/brew shellenv)"
+    [ -d /Library/TeX/texbin ] && export PATH="/Library/TeX/texbin:$PATH"
+    ;;
+  Linux)
+    [ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    ;;
+esac
 
 # Path to your oh-my-zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
@@ -83,10 +90,9 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(zsh-autosuggestions git)
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 
 source $ZSH/oh-my-zsh.sh
-
 
 # User configuration
 
@@ -117,42 +123,32 @@ source $ZSH/oh-my-zsh.sh
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-#NVM
- export NVM_DIR="$HOME/.nvm"
-  [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"  # This loads nvm
-  [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" 
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
 
-
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/Users/home/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/Users/home/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "/Users/home/miniforge3/etc/profile.d/conda.sh"
+if [ -d "$HOME/miniforge3" ]; then
+    __conda_setup="$("$HOME/miniforge3/bin/conda" shell.zsh hook 2>/dev/null)"
+    if [ $? -eq 0 ]; then
+        eval "$__conda_setup"
+    elif [ -f "$HOME/miniforge3/etc/profile.d/conda.sh" ]; then
+        source "$HOME/miniforge3/etc/profile.d/conda.sh"
     else
-        export PATH="/Users/home/miniforge3/bin:$PATH"
+        export PATH="$HOME/miniforge3/bin:$PATH"
     fi
+    unset __conda_setup
+
+    [ -f "$HOME/miniforge3/etc/profile.d/mamba.sh" ] && source "$HOME/miniforge3/etc/profile.d/mamba.sh"
 fi
-unset __conda_setup
-# <<< conda initialize <<<
 
+[ -s "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
 
-export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+export BUN_INSTALL="$HOME/.bun"
+[ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
+[ -d "$BUN_INSTALL/bin" ] && export PATH="$BUN_INSTALL/bin:$PATH"
 
-# Added by Windsurf
-export PATH="/Users/home/.codeium/windsurf/bin:$PATH"
-
-# bun completions
-[ -s "/Users/home/.bun/_bun" ] && source "/Users/home/.bun/_bun"
-export EXPO_NO_CAPABILITY_SYNC=1
-export PATH=$PATH:$HOME/.maestro/bin
-export PATH=$PATH:$HOME/.maestro/bin
-export PATH=$PATH:$HOME/.maestro/bin
-
-# Added by Antigravity
-export PATH="/Users/home/.antigravity/antigravity/bin:$PATH"
+[ -d "$HOME/.yarn/bin" ] && export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+[ -d "$HOME/.maestro/bin" ] && export PATH="$PATH:$HOME/.maestro/bin"
 
 # ===== Dotfiles Additions =====
 
