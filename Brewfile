@@ -13,7 +13,6 @@ brew "tree-sitter"   # Parser CLI for nvim-treesitter
 
 # Applications
 cask "ghostty"
-cask "wispr-flow"
 
 # Note: Codex is installed via pnpm after node is available
 # Run: pnpm add -g @openai/codex
