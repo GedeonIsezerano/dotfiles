@@ -163,6 +163,57 @@ ensure_fd_command() {
     ln -sfn "$(command -v fdfind)" "$HOME/.local/bin/fd"
 }
 
+install_ripgrep() {
+    local rg_path
+    rg_path="$(command -v rg 2>/dev/null || true)"
+
+    case "$rg_path" in
+        "$HOME/.local/bin/rg" | "$HOME/.cargo/bin/rg" | /usr/bin/rg | /usr/local/bin/rg | /opt/homebrew/bin/rg | /home/linuxbrew/.linuxbrew/bin/rg)
+            return
+            ;;
+        *"/codex-path/rg")
+            mkdir -p "$HOME/.local/bin"
+            ln -sfn "$rg_path" "$HOME/.local/bin/rg"
+            return
+            ;;
+        "")
+            ;;
+        *)
+            return
+            ;;
+    esac
+
+    if have brew; then
+        log "Installing ripgrep..."
+        brew install ripgrep
+        return
+    fi
+
+    if have apt-get && sudo -n true 2>/dev/null; then
+        log "Installing ripgrep..."
+        sudo apt-get update
+        sudo apt-get install -y ripgrep
+        return
+    fi
+
+    if have cargo; then
+        log "Installing ripgrep with cargo..."
+        cargo install ripgrep --locked
+        return
+    fi
+
+    local codex_rg
+    codex_rg="$(find "$PNPM_HOME" "$HOME/.local/share/pnpm" -path '*/codex-path/rg' -type f -perm -111 2>/dev/null | sort | tail -n 1 || true)"
+
+    if [ -n "$codex_rg" ]; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sfn "$codex_rg" "$HOME/.local/bin/rg"
+        return
+    fi
+
+    warn "ripgrep is required for Telescope live_grep but could not be installed."
+}
+
 install_homebrew_packages() {
     if ! have brew; then
         log "Installing Homebrew..."
@@ -278,6 +329,7 @@ install_shell_extras
 install_codex
 install_neovim_release
 install_tree_sitter_cli
+install_ripgrep
 ensure_fd_command
 
 log "Creating symlinks..."
