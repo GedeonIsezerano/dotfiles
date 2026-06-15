@@ -9,6 +9,7 @@ typeset -U path PATH
 path=("$HOME/.local/bin" "$HOME/bin" $path)
 export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
 [ -d "$PNPM_HOME" ] && path=("$PNPM_HOME" "$PNPM_HOME/bin" $path)
+[ -d "$HOME/.local/opt/go/bin" ] && path=("$HOME/.local/opt/go/bin" $path)
 [ -d "$HOME/.local/opt/nvim-linux-x86_64/bin" ] && path=("$HOME/.local/opt/nvim-linux-x86_64/bin" $path)
 
 case "$(uname -s)" in

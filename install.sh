@@ -4,7 +4,7 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
-export PATH="$PNPM_HOME:$PNPM_HOME/bin:$HOME/.local/bin:$PATH"
+export PATH="$PNPM_HOME:$PNPM_HOME/bin:$HOME/.local/opt/go/bin:$HOME/.local/bin:$PATH"
 
 log() {
     printf '%s\n' "$*"
@@ -59,7 +59,21 @@ link_file() {
 }
 
 install_ubuntu_packages() {
-    local packages=(zsh neovim nodejs ripgrep fd-find fzf curl)
+    local packages=(
+        zsh
+        neovim
+        git
+        nodejs
+        npm
+        golang-go
+        ripgrep
+        fd-find
+        fzf
+        curl
+        tar
+        unzip
+        ca-certificates
+    )
 
     if ! have apt-get; then
         warn "apt-get not found; skipping Ubuntu package installation."
@@ -105,17 +119,28 @@ install_git() {
 install_neovim_release() {
     local minimum_version="0.11.0"
 
+    if [ "$OS" != "Linux" ]; then
+        if have nvim; then
+            local current_version
+            current_version="$(nvim --version | sed -n '1s/^NVIM v\([0-9.]*\).*/\1/p')"
+            if [ -n "$current_version" ] && version_at_least "$current_version" "$minimum_version"; then
+                return
+            fi
+        fi
+        warn "Neovim $minimum_version or newer is required, but automatic release installation is only configured for Linux."
+        return
+    fi
+
     if have nvim; then
         local current_version
         current_version="$(nvim --version | sed -n '1s/^NVIM v\([0-9.]*\).*/\1/p')"
-        if [ -n "$current_version" ] && version_at_least "$current_version" "$minimum_version"; then
-            return
+        if [ -z "$current_version" ] || ! version_at_least "$current_version" "$minimum_version"; then
+            warn "Neovim $minimum_version or newer is required; installing a user-local release."
+        else
+            log "Updating user-local Neovim release..."
         fi
-        warn "Neovim $minimum_version or newer is required; installing a user-local release."
-    fi
-
-    if [ "$OS" != "Linux" ]; then
-        return
+    else
+        log "Installing user-local Neovim release..."
     fi
 
     local machine
@@ -136,7 +161,6 @@ install_neovim_release() {
     trap 'rm -f "$archive"; trap - RETURN' RETURN
     local install_dir="$HOME/.local/opt/nvim-linux-x86_64"
 
-    log "Installing Neovim release to $install_dir..."
     curl -fL \
         "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz" \
         -o "$archive"
@@ -148,11 +172,77 @@ install_neovim_release() {
     ln -sfn "$install_dir/bin/nvim" "$HOME/.local/bin/nvim"
 }
 
-install_tree_sitter_cli() {
-    if have tree-sitter; then
+go_version() {
+    go version 2>/dev/null | awk '{ print $3 }' | sed 's/^go//'
+}
+
+install_go_release() {
+    local minimum_version="1.21.0"
+
+    if [ "$OS" != "Linux" ]; then
+        local current_version
+        current_version="$(go_version || true)"
+        if [ -n "$current_version" ] && version_at_least "$current_version" "$minimum_version"; then
+            return
+        fi
+        warn "Go $minimum_version or newer is required for gopls, but automatic release installation is only configured for Linux."
         return
     fi
 
+    local machine arch
+    machine="$(uname -m)"
+
+    case "$machine" in
+        x86_64) arch="amd64" ;;
+        aarch64 | arm64) arch="arm64" ;;
+        *)
+            warn "No user-local Go fallback configured for $machine."
+            return
+            ;;
+    esac
+
+    if ! have curl || ! have tar; then
+        warn "curl and tar are required for the user-local Go fallback."
+        return
+    fi
+
+    local version latest_version archive install_root
+    version="$(curl -fsSL "https://go.dev/dl/?mode=json" | sed -n 's/.*"version": "\(go[0-9.]*\)".*/\1/p' | head -n 1)"
+    if [ -z "$version" ]; then
+        warn "Could not determine the latest Go release."
+        return
+    fi
+    latest_version="${version#go}"
+
+    if have go; then
+        local current_version
+        current_version="$(go_version || true)"
+        if [ -n "$current_version" ] && version_at_least "$current_version" "$latest_version"; then
+            return
+        fi
+
+        if [ -z "$current_version" ] || ! version_at_least "$current_version" "$minimum_version"; then
+            warn "Go $minimum_version or newer is required for gopls; installing $version."
+        else
+            log "Updating Go from $current_version to $latest_version..."
+        fi
+    else
+        log "Installing $version..."
+    fi
+
+    archive="$(mktemp)"
+    trap 'rm -f "$archive"; trap - RETURN' RETURN
+    install_root="$HOME/.local/opt"
+
+    log "Installing $version to $install_root/go..."
+    curl -fL "https://go.dev/dl/${version}.linux-${arch}.tar.gz" -o "$archive"
+    rm -rf "$install_root/go"
+    mkdir -p "$install_root"
+    tar -xzf "$archive" -C "$install_root"
+    export PATH="$install_root/go/bin:$PATH"
+}
+
+install_tree_sitter_cli() {
     local os_name machine asset
     os_name="$(uname -s)"
     machine="$(uname -m)"
@@ -177,7 +267,11 @@ install_tree_sitter_cli() {
     archive="$(mktemp)"
     trap 'rm -f "$archive"; trap - RETURN' RETURN
 
-    log "Installing tree-sitter CLI..."
+    if have tree-sitter; then
+        log "Updating tree-sitter CLI..."
+    else
+        log "Installing tree-sitter CLI..."
+    fi
     curl -fL "https://github.com/tree-sitter/tree-sitter/releases/latest/download/$asset" -o "$archive"
     mkdir -p "$HOME/.local/bin"
     unzip -p "$archive" tree-sitter > "$HOME/.local/bin/tree-sitter"
@@ -194,6 +288,25 @@ ensure_fd_command() {
 }
 
 install_ripgrep() {
+    if have brew; then
+        log "Installing or upgrading ripgrep..."
+        brew upgrade ripgrep 2>/dev/null || brew install ripgrep
+        return
+    fi
+
+    if have apt-get && sudo -n true 2>/dev/null; then
+        log "Installing or upgrading ripgrep..."
+        sudo apt-get update
+        sudo apt-get install -y ripgrep
+        return
+    fi
+
+    if have cargo; then
+        log "Installing or upgrading ripgrep with cargo..."
+        cargo install ripgrep --locked
+        return
+    fi
+
     local rg_path
     rg_path="$(command -v rg 2>/dev/null || true)"
 
@@ -212,25 +325,6 @@ install_ripgrep() {
             return
             ;;
     esac
-
-    if have brew; then
-        log "Installing ripgrep..."
-        brew install ripgrep
-        return
-    fi
-
-    if have apt-get && sudo -n true 2>/dev/null; then
-        log "Installing ripgrep..."
-        sudo apt-get update
-        sudo apt-get install -y ripgrep
-        return
-    fi
-
-    if have cargo; then
-        log "Installing ripgrep with cargo..."
-        cargo install ripgrep --locked
-        return
-    fi
 
     local codex_rg
     codex_rg="$(find "$PNPM_HOME" "$HOME/.local/share/pnpm" -path '*/codex-path/rg' -type f -perm -111 2>/dev/null | sort | tail -n 1 || true)"
@@ -256,7 +350,9 @@ install_homebrew_packages() {
         fi
     fi
 
-    log "Installing packages from Brewfile..."
+    log "Updating Homebrew metadata..."
+    brew update
+    log "Installing and upgrading packages from Brewfile..."
     brew bundle install --file="$DOTFILES_DIR/Brewfile"
 }
 
@@ -280,8 +376,11 @@ install_shell_extras() {
         log "Installing Oh My Zsh..."
         RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c \
             "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    elif [ -d "$HOME/.oh-my-zsh/.git" ]; then
+        log "Updating Oh My Zsh..."
+        git -C "$HOME/.oh-my-zsh" pull --ff-only
     else
-        log "Oh My Zsh already installed."
+        warn "$HOME/.oh-my-zsh exists but is not a git checkout; leaving it unchanged."
     fi
 
     local custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
@@ -295,6 +394,10 @@ install_shell_extras() {
 
 install_pnpm() {
     if have pnpm; then
+        if ! have brew && have corepack; then
+            log "Updating pnpm with corepack..."
+            corepack prepare pnpm@latest --activate
+        fi
         return
     fi
 
@@ -321,6 +424,28 @@ install_pnpm() {
     fi
 
     warn "pnpm could not be installed because curl is unavailable."
+}
+
+install_uv() {
+    if have brew; then
+        log "Installing or upgrading uv..."
+        brew upgrade uv 2>/dev/null || brew install uv
+        return
+    fi
+
+    if have uv; then
+        log "Updating uv..."
+        uv self update
+        return
+    fi
+
+    if have curl; then
+        log "Installing uv..."
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        return
+    fi
+
+    warn "uv could not be installed because curl is unavailable."
 }
 
 install_codex() {
@@ -356,8 +481,10 @@ esac
 
 install_git
 install_shell_extras
+install_uv
 install_codex
 install_neovim_release
+install_go_release
 install_tree_sitter_cli
 install_ripgrep
 ensure_fd_command

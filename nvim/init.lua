@@ -118,7 +118,7 @@ require("lazy").setup({
         "WhoIsSethDaniel/mason-tool-installer.nvim",
         dependencies = { "mason-org/mason.nvim" },
         opts = {
-            ensure_installed = { "gopls" },
+            ensure_installed = { "gopls", "pyright" },
         },
     },
 
@@ -219,7 +219,22 @@ vim.lsp.config("gopls", {
     },
 })
 
-vim.lsp.enable("gopls")
+vim.lsp.config("pyright", {
+    cmd = { "pyright-langserver", "--stdio" },
+    filetypes = { "python" },
+    root_markers = { "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", ".git" },
+    settings = {
+        python = {
+            analysis = {
+                autoSearchPaths = true,
+                diagnosticMode = "workspace",
+                useLibraryCodeForTypes = true,
+            },
+        },
+    },
+})
+
+vim.lsp.enable({ "gopls", "pyright" })
 
 vim.api.nvim_create_autocmd("LspAttach", {
     callback = function(event)
