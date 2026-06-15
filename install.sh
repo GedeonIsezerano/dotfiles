@@ -435,7 +435,17 @@ install_uv() {
 
     if have uv; then
         log "Updating uv..."
-        uv self update
+        if uv self update; then
+            return
+        fi
+
+        if have curl; then
+            warn "uv self-update failed; installing the latest standalone uv instead."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            return
+        fi
+
+        warn "uv self-update failed and curl is unavailable."
         return
     fi
 
