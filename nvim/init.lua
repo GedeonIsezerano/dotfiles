@@ -4,7 +4,7 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
-local treesitter_languages = { "lua", "python", "javascript", "typescript", "json", "yaml", "markdown" }
+local treesitter_languages = { "go", "gomod", "gowork", "gosum", "lua", "python", "javascript", "typescript", "json", "yaml", "markdown" }
 
 -- Line numbers
 vim.opt.number = true
@@ -42,10 +42,50 @@ vim.opt.backup = false
 -- Update time
 vim.opt.updatetime = 250
 
+local function trim(s)
+    return (s:gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function command_output(cmd)
+    if vim.fn.executable(cmd[1]) ~= 1 then
+        return nil
+    end
+
+    local result = vim.system(cmd, { text = true }):wait()
+    if result.code ~= 0 then
+        return nil
+    end
+
+    return trim(result.stdout or "")
+end
+
+local function go_env_for_root(root_dir)
+    if not root_dir or root_dir == "" then
+        return nil
+    end
+
+    local tool_go = vim.fs.find("tool/go", { upward = true, path = root_dir })[1]
+    if not tool_go then
+        return nil
+    end
+
+    local goroot = command_output({ tool_go, "env", "GOROOT" })
+    if not goroot or goroot == "" then
+        return nil
+    end
+
+    return {
+        GOROOT = goroot,
+        PATH = goroot .. "/bin:" .. vim.env.PATH,
+    }
+end
+
 -- Basic keymaps
 vim.keymap.set("n", "<leader>w", ":w<CR>", { desc = "Save file" })
 vim.keymap.set("n", "<leader>q", ":q<CR>", { desc = "Quit" })
 vim.keymap.set("n", "<Esc>", ":noh<CR>", { desc = "Clear search highlight" })
+vim.keymap.set("n", "<M-Left>", "<C-o>", { desc = "Jump back" })
+vim.keymap.set("n", "<M-Right>", "<C-i>", { desc = "Jump forward" })
 
 -- Window navigation
 vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left window" })
@@ -69,6 +109,19 @@ vim.opt.rtp:prepend(lazypath)
 
 -- Plugins
 require("lazy").setup({
+    -- External tools
+    {
+        "mason-org/mason.nvim",
+        opts = {},
+    },
+    {
+        "WhoIsSethDaniel/mason-tool-installer.nvim",
+        dependencies = { "mason-org/mason.nvim" },
+        opts = {
+            ensure_installed = { "gopls" },
+        },
+    },
+
     -- Colorscheme
     {
         "catppuccin/nvim",
@@ -138,4 +191,48 @@ require("lazy").setup({
             })
         end,
     },
+})
+
+vim.lsp.config("gopls", {
+    cmd = { "gopls" },
+    before_init = function(params, config)
+        local root_dir = params.rootPath
+        if (not root_dir or root_dir == "") and params.rootUri then
+            root_dir = vim.uri_to_fname(params.rootUri)
+        end
+
+        local go_env = go_env_for_root(root_dir)
+        if go_env then
+            config.cmd_env = vim.tbl_extend("force", config.cmd_env or {}, go_env)
+        end
+    end,
+    filetypes = { "go", "gomod", "gowork", "gotmpl" },
+    root_markers = { "go.work", "go.mod", ".git" },
+    settings = {
+        gopls = {
+            analyses = {
+                unusedparams = true,
+                unusedwrite = true,
+            },
+            staticcheck = true,
+        },
+    },
+})
+
+vim.lsp.enable("gopls")
+
+vim.api.nvim_create_autocmd("LspAttach", {
+    callback = function(event)
+        local opts = { buffer = event.buf }
+
+        vim.keymap.set("n", "gd", vim.lsp.buf.definition, vim.tbl_extend("force", opts, { desc = "Go to definition" }))
+        vim.keymap.set("n", "gD", vim.lsp.buf.declaration, vim.tbl_extend("force", opts, { desc = "Go to declaration" }))
+        vim.keymap.set("n", "gi", vim.lsp.buf.implementation, vim.tbl_extend("force", opts, { desc = "Go to implementation" }))
+        vim.keymap.set("n", "gr", vim.lsp.buf.references, vim.tbl_extend("force", opts, { desc = "Find references" }))
+        vim.keymap.set("n", "K", vim.lsp.buf.hover, vim.tbl_extend("force", opts, { desc = "Show documentation" }))
+        vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, vim.tbl_extend("force", opts, { desc = "Rename symbol" }))
+        vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, vim.tbl_extend("force", opts, { desc = "Code action" }))
+        vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, vim.tbl_extend("force", opts, { desc = "Previous diagnostic" }))
+        vim.keymap.set("n", "]d", vim.diagnostic.goto_next, vim.tbl_extend("force", opts, { desc = "Next diagnostic" }))
+    end,
 })

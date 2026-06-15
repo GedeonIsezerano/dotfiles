@@ -5,16 +5,17 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+typeset -U path PATH
+path=("$HOME/.local/bin" "$HOME/bin" $path)
 export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
-[ -d "$PNPM_HOME" ] && export PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
-[ -d "$HOME/.local/opt/nvim-linux-x86_64/bin" ] && export PATH="$HOME/.local/opt/nvim-linux-x86_64/bin:$PATH"
+[ -d "$PNPM_HOME" ] && path=("$PNPM_HOME" "$PNPM_HOME/bin" $path)
+[ -d "$HOME/.local/opt/nvim-linux-x86_64/bin" ] && path=("$HOME/.local/opt/nvim-linux-x86_64/bin" $path)
 
 case "$(uname -s)" in
   Darwin)
     [ -x /opt/homebrew/bin/brew ] && eval "$(/opt/homebrew/bin/brew shellenv)"
     [ -x /usr/local/bin/brew ] && eval "$(/usr/local/bin/brew shellenv)"
-    [ -d /Library/TeX/texbin ] && export PATH="/Library/TeX/texbin:$PATH"
+    [ -d /Library/TeX/texbin ] && path=("/Library/TeX/texbin" $path)
     ;;
   Linux)
     [ -x /home/linuxbrew/.linuxbrew/bin/brew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
@@ -92,7 +93,9 @@ ZSH_THEME="powerlevel10k/powerlevel10k"
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting)
 
-source $ZSH/oh-my-zsh.sh
+if [[ -r "$ZSH/oh-my-zsh.sh" ]]; then
+  source "$ZSH/oh-my-zsh.sh"
+fi
 
 # User configuration
 
@@ -145,10 +148,10 @@ fi
 
 export BUN_INSTALL="$HOME/.bun"
 [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
-[ -d "$BUN_INSTALL/bin" ] && export PATH="$BUN_INSTALL/bin:$PATH"
+[ -d "$BUN_INSTALL/bin" ] && path=("$BUN_INSTALL/bin" $path)
 
-[ -d "$HOME/.yarn/bin" ] && export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-[ -d "$HOME/.maestro/bin" ] && export PATH="$PATH:$HOME/.maestro/bin"
+[ -d "$HOME/.yarn/bin" ] && path=("$HOME/.yarn/bin" "$HOME/.config/yarn/global/node_modules/.bin" $path)
+[ -d "$HOME/.maestro/bin" ] && path=($path "$HOME/.maestro/bin")
 
 # ===== Dotfiles Additions =====
 

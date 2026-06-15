@@ -18,6 +18,25 @@ have() {
     command -v "$1" >/dev/null 2>&1
 }
 
+version_at_least() {
+    local actual="$1"
+    local minimum="$2"
+
+    awk -v actual="$actual" -v minimum="$minimum" '
+        BEGIN {
+            split(actual, a, ".")
+            split(minimum, m, ".")
+            for (i = 1; i <= 3; i++) {
+                av = a[i] + 0
+                mv = m[i] + 0
+                if (av > mv) exit 0
+                if (av < mv) exit 1
+            }
+            exit 0
+        }
+    '
+}
+
 backup_if_needed() {
     local target="$1"
 
@@ -84,7 +103,18 @@ install_git() {
 }
 
 install_neovim_release() {
-    if have nvim || [ "$OS" != "Linux" ]; then
+    local minimum_version="0.11.0"
+
+    if have nvim; then
+        local current_version
+        current_version="$(nvim --version | sed -n '1s/^NVIM v\([0-9.]*\).*/\1/p')"
+        if [ -n "$current_version" ] && version_at_least "$current_version" "$minimum_version"; then
+            return
+        fi
+        warn "Neovim $minimum_version or newer is required; installing a user-local release."
+    fi
+
+    if [ "$OS" != "Linux" ]; then
         return
     fi
 
@@ -103,6 +133,7 @@ install_neovim_release() {
 
     local archive
     archive="$(mktemp)"
+    trap 'rm -f "$archive"; trap - RETURN' RETURN
     local install_dir="$HOME/.local/opt/nvim-linux-x86_64"
 
     log "Installing Neovim release to $install_dir..."
@@ -112,7 +143,6 @@ install_neovim_release() {
     rm -rf "$install_dir"
     mkdir -p "$HOME/.local/opt"
     tar -xzf "$archive" -C "$HOME/.local/opt"
-    rm -f "$archive"
 
     mkdir -p "$HOME/.local/bin"
     ln -sfn "$install_dir/bin/nvim" "$HOME/.local/bin/nvim"
@@ -145,13 +175,13 @@ install_tree_sitter_cli() {
 
     local archive
     archive="$(mktemp)"
+    trap 'rm -f "$archive"; trap - RETURN' RETURN
 
     log "Installing tree-sitter CLI..."
     curl -fL "https://github.com/tree-sitter/tree-sitter/releases/latest/download/$asset" -o "$archive"
     mkdir -p "$HOME/.local/bin"
     unzip -p "$archive" tree-sitter > "$HOME/.local/bin/tree-sitter"
     chmod +x "$HOME/.local/bin/tree-sitter"
-    rm -f "$archive"
 }
 
 ensure_fd_command() {
